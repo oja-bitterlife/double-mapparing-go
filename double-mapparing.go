@@ -57,3 +57,16 @@ func (dbm *DoubleBuffer[T]) View(fn func(data *T) error) error {
 func (dbm *DoubleBuffer[T]) Raw() *T {
 	return dbm.active.Load()
 }
+
+// New は新しい DoubleBuffer インスタンスを作成し、初期値をセットします。
+func New[T any](
+	marshal func(any) ([]byte, error),
+	unmarshal func([]byte, any) error,
+) *DoubleBuffer[T] {
+	dbm := &DoubleBuffer[T]{
+		marshal:   marshal,
+		unmarshal: unmarshal,
+	}
+	dbm.active.Store(new(T)) // 初期値はゼロ値
+	return dbm
+}

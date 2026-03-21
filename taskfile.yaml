@@ -11,11 +11,12 @@ tasks:
     desc: "Build"
     sources:
       - ./*.go
+      - ./examples/*.go
     generates:
       - "{{.BIN_PATH}}"
     cmds:
       - mkdir -p {{.BIN_DIR}}
-      - go build -o {{.BIN_PATH}} .
+      - go build -o {{.BIN_PATH}} ./examples
 
   clean:
     desc: "Clean"
