@@ -1,0 +1,36 @@
+version: 3
+
+env:
+  BIN_NAME: "do-test"
+  BIN_DIR: "bin"
+  BIN_PATH: "{{.BIN_DIR}}/{{.BIN_NAME}}"
+  DB_NAME: "{{.BIN_NAME}}.json"
+
+tasks:
+  build:
+    desc: "Build"
+    sources:
+      - ./*.go
+    generates:
+      - "{{.BIN_PATH}}"
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - go build -o {{.BIN_PATH}} .
+
+  clean:
+    desc: "Clean"
+    cmds:
+      - "rm -rf {{.BIN_PATH}} {{.DB_NAME}}"
+
+  tag:
+    desc: "タグを更新する"
+    deps:
+      - build
+    cmds:
+      - git tag $(./{{.BIN_PATH}} version)
+      - git tag
+
+  default:
+    cmds:
+      - task --list
+
