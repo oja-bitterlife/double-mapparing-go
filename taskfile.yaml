@@ -2,9 +2,7 @@ version: 3
 
 vars:
   VERSION: v0.2.0
-  BIN_NAME: "do-test"
   BIN_DIR: "bin"
-  BIN_PATH: "{{.BIN_DIR}}/{{.BIN_NAME}}"
   DB_NAME: "{{.BIN_NAME}}.json"
 
 tasks:
@@ -12,17 +10,20 @@ tasks:
     desc: "Build"
     sources:
       - ./*.go
-      - ./examples/*.go
+      - ./examples/**/*.go
     generates:
-      - "{{.BIN_PATH}}"
+      - "{{.BIN_DIR}}/main"
+      - "{{.BIN_DIR}}/persistence"
     cmds:
       - mkdir -p {{.BIN_DIR}}
-      - go build -o {{.BIN_PATH}} ./examples
+      - go build -o {{.BIN_DIR}}/main ./examples/main
+      - go build -o {{.BIN_DIR}}/persistence ./examples/persistence
 
   clean:
     desc: "Clean"
     cmds:
-      - "rm -rf {{.BIN_PATH}} {{.DB_NAME}}"
+      - "rm -rf {{.BIN_DIR}}/main"
+      - "rm -rf {{.BIN_DIR}}/persistence"
 
   test:
     desc: "Run tests"
