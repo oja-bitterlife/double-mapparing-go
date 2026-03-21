@@ -23,6 +23,11 @@ tasks:
     cmds:
       - "rm -rf {{.BIN_PATH}} {{.DB_NAME}}"
 
+  test:
+    desc: "Run tests"
+    cmds:
+      - go test -v -race ./test
+
   tag:
     desc: "タグを更新する"
     deps:

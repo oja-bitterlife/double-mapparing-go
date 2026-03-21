@@ -1,0 +1,58 @@
+package doublemapparing
+
+import (
+	"encoding/json"
+	"sync"
+	"testing"
+
+	dbm "github.com/oja-bitterlife/double-mapparing-go"
+)
+
+type TestData struct {
+	Counter int `json:"counter"`
+}
+
+func TestDoubleBuffer_Race(t *testing.T) {
+	m := func(v any) ([]byte, error) { return json.Marshal(v) }
+	u := func(b []byte, v any) error { return json.Unmarshal(b, v) }
+	testData := dbm.New[TestData](m, u)
+
+	var wg sync.WaitGroup
+	workers := 100
+	iterations := 100
+
+	// Writer: 複数のゴルーチンから同時に Update
+	for range workers {
+		wg.Go(func() {
+			for range iterations {
+				_ = testData.Update(func(d *TestData) error {
+					d.Counter++
+					return nil
+				})
+			}
+		})
+	}
+
+	// Reader: 更新中にひたすら Raw で読み取り
+	stopReader := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-stopReader:
+				return
+			default:
+				_ = testData.Raw().Counter
+			}
+		}
+	}()
+
+	wg.Wait()
+	close(stopReader)
+
+	// 最終結果の整合性チェック
+	final := testData.Raw().Counter
+	expected := workers * iterations
+	if final != expected {
+		t.Errorf("expected %d, got %d", expected, final)
+	}
+}
