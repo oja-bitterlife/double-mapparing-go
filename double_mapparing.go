@@ -17,7 +17,7 @@ import (
 
 // **********************************************************************
 // スレッドセーフなトランザクションでデータ更新できるようにする管理用構造体
-type DoubleBuffer[T any] struct {
+type DoubleMappering[T any] struct {
 	raw       atomic.Pointer[T]
 	mtx       sync.Mutex
 	marshal   func(*T) ([]byte, error)
@@ -29,8 +29,8 @@ type DoubleBuffer[T any] struct {
 func New[T any](
 	marshal func(*T) ([]byte, error),
 	unmarshal func([]byte) (*T, error),
-) *DoubleBuffer[T] {
-	dbm := &DoubleBuffer[T]{
+) *DoubleMappering[T] {
+	dbm := &DoubleMappering[T]{
 		marshal:   marshal,
 		unmarshal: unmarshal,
 	}
@@ -42,7 +42,7 @@ func New[T any](
 // トランザクションの実装
 // ==================================================
 // clone: データのクローンを作成するためのヘルパー関数。シリアライズとデシリアライズを利用してクローンを作成する
-func (dbm *DoubleBuffer[T]) clone(src *T) (*T, error) {
+func (dbm *DoubleMappering[T]) clone(src *T) (*T, error) {
 	b, err := dbm.marshal(src)
 	if err != nil {
 		return nil, err
@@ -52,7 +52,7 @@ func (dbm *DoubleBuffer[T]) clone(src *T) (*T, error) {
 
 // ==================================================
 // Update: データを更新するためのメソッド。 クローンを作成して更新関数に渡し、errorがなければ置き換える。
-func (dbm *DoubleBuffer[T]) Update(fn func(data *T) error) error {
+func (dbm *DoubleMappering[T]) Update(fn func(data *T) error) error {
 	dbm.mtx.Lock()
 	defer dbm.mtx.Unlock()
 
@@ -73,13 +73,13 @@ func (dbm *DoubleBuffer[T]) Update(fn func(data *T) error) error {
 // データの取得関数
 // ==================================================
 // View: クローンデータを取得する。適当に扱って壊しても大丈夫なので普段はこっち
-func (dbm *DoubleBuffer[T]) View() (*T, error) {
+func (dbm *DoubleMappering[T]) View() (*T, error) {
 	return dbm.clone(dbm.raw.Load())
 }
 
 // ==================================================
 // Raw: 生データを取得する。シングルスレッド下や高速化が必要な場面で直接データにアクセスしたい場合に使用する
-func (dbm *DoubleBuffer[T]) Raw() *T {
+func (dbm *DoubleMappering[T]) Raw() *T {
 	return dbm.raw.Load()
 }
 
@@ -87,13 +87,13 @@ func (dbm *DoubleBuffer[T]) Raw() *T {
 // ファイルへの保存と復元のためのメソッド
 // ==================================================
 // Bytes: データをシリアライズしてバイト列として取得する。ファイルに保存するために使用する
-func (dbm *DoubleBuffer[T]) Bytes() ([]byte, error) {
+func (dbm *DoubleMappering[T]) Bytes() ([]byte, error) {
 	return dbm.marshal(dbm.raw.Load())
 }
 
 // ==================================================
 // Restore: バイト列からデータを復元する。ファイルから読み込んだデータを復元するために使用する
-func (dbm *DoubleBuffer[T]) Restore(b []byte) error {
+func (dbm *DoubleMappering[T]) Restore(b []byte) error {
 	newData, err := dbm.unmarshal(b)
 	if err != nil {
 		return err
