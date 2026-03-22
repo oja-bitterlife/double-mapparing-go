@@ -51,7 +51,7 @@ func (dbm *DoubleBuffer[T]) clone(src *T) (*T, error) {
 }
 
 // ==================================================
-// Update: データを更新するためのメソッド。クローンを作成してから更新関数を呼び出し、最後に新しいデータを保存する
+// Update: データを更新するためのメソッド。 クローンを作成して更新関数に渡し、errorがなければ置き換える。
 func (dbm *DoubleBuffer[T]) Update(fn func(data *T) error) error {
 	dbm.mtx.Lock()
 	defer dbm.mtx.Unlock()
@@ -69,18 +69,14 @@ func (dbm *DoubleBuffer[T]) Update(fn func(data *T) error) error {
 	return nil
 }
 
+// **********************************************************************
+// データの取得関数
 // ==================================================
-// View: データを読み取るためのメソッド。クローンを作成してから読み取り関数を呼び出す
-func (dbm *DoubleBuffer[T]) View(fn func(data *T) error) error {
-	snap, err := dbm.clone(dbm.raw.Load())
-	if err != nil {
-		return err
-	}
-	return fn(snap)
+// View: クローンデータを取得する。適当に扱って壊しても大丈夫なので普段はこっち
+func (dbm *DoubleBuffer[T]) View() (*T, error) {
+	return dbm.clone(dbm.raw.Load())
 }
 
-// **********************************************************************
-// トランザクション外で直接データにアクセスするためのメソッド
 // ==================================================
 // Raw: 生データを取得する。シングルスレッド下や高速化が必要な場面で直接データにアクセスしたい場合に使用する
 func (dbm *DoubleBuffer[T]) Raw() *T {
