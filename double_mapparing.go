@@ -1,3 +1,13 @@
+// ######################################################################
+// スレッドセーフなトランザクションでデータを更新できるようにする仕組み。
+//
+//   - Update関数内でerrorを返すと、更新が行われずロールバックされます。
+//   - 単純なダブルバッファだとgoroutineで死ぬ時があるので、
+//     atomic.Pointerを使用してスレッドセーフなトランザクションを実現しています。
+//   - せっかくシリアライズ関数を登録するんだから、
+//     ファイルへの保存にも使えるようにしておきました。
+//
+// ######################################################################
 package doublemapparing
 
 import (
@@ -5,13 +15,17 @@ import (
 	"sync/atomic"
 )
 
+// **********************************************************************
+// スレッドセーフなトランザクションでデータ更新できるようにする管理用構造体
 type DoubleBuffer[T any] struct {
-	active    atomic.Pointer[T]
+	raw       atomic.Pointer[T]
 	mtx       sync.Mutex
 	marshal   func(*T) ([]byte, error)
 	unmarshal func([]byte) (*T, error)
 }
 
+// ==================================================
+// New: DoubleBufferの初期化。シリアライズ関数とデシリアライズ関数を登録する
 func New[T any](
 	marshal func(*T) ([]byte, error),
 	unmarshal func([]byte) (*T, error),
@@ -20,10 +34,14 @@ func New[T any](
 		marshal:   marshal,
 		unmarshal: unmarshal,
 	}
-	dbm.active.Store(new(T)) // 初期値としてゼロ値の構造体をセット
+	dbm.raw.Store(new(T)) // 初期値としてゼロ値の構造体をセット
 	return dbm
 }
 
+// **********************************************************************
+// トランザクションの実装
+// ==================================================
+// clone: データのクローンを作成するためのヘルパー関数。シリアライズとデシリアライズを利用してクローンを作成する
 func (dbm *DoubleBuffer[T]) clone(src *T) (*T, error) {
 	b, err := dbm.marshal(src)
 	if err != nil {
@@ -32,11 +50,13 @@ func (dbm *DoubleBuffer[T]) clone(src *T) (*T, error) {
 	return dbm.unmarshal(b)
 }
 
+// ==================================================
+// Update: データを更新するためのメソッド。クローンを作成してから更新関数を呼び出し、最後に新しいデータを保存する
 func (dbm *DoubleBuffer[T]) Update(fn func(data *T) error) error {
 	dbm.mtx.Lock()
 	defer dbm.mtx.Unlock()
 
-	cloned, err := dbm.clone(dbm.active.Load())
+	cloned, err := dbm.clone(dbm.raw.Load())
 	if err != nil {
 		return err
 	}
@@ -45,26 +65,38 @@ func (dbm *DoubleBuffer[T]) Update(fn func(data *T) error) error {
 		return err
 	}
 
-	dbm.active.Store(cloned)
+	dbm.raw.Store(cloned)
 	return nil
 }
 
+// ==================================================
+// View: データを読み取るためのメソッド。クローンを作成してから読み取り関数を呼び出す
 func (dbm *DoubleBuffer[T]) View(fn func(data *T) error) error {
-	snap, err := dbm.clone(dbm.active.Load())
+	snap, err := dbm.clone(dbm.raw.Load())
 	if err != nil {
 		return err
 	}
 	return fn(snap)
 }
 
+// **********************************************************************
+// トランザクション外で直接データにアクセスするためのメソッド
+// ==================================================
+// Raw: 生データを取得する。シングルスレッド下や高速化が必要な場面で直接データにアクセスしたい場合に使用する
 func (dbm *DoubleBuffer[T]) Raw() *T {
-	return dbm.active.Load()
+	return dbm.raw.Load()
 }
 
+// **********************************************************************
+// ファイルへの保存と復元のためのメソッド
+// ==================================================
+// Bytes: データをシリアライズしてバイト列として取得する。ファイルに保存するために使用する
 func (dbm *DoubleBuffer[T]) Bytes() ([]byte, error) {
-	return dbm.marshal(dbm.active.Load())
+	return dbm.marshal(dbm.raw.Load())
 }
 
+// ==================================================
+// Restore: バイト列からデータを復元する。ファイルから読み込んだデータを復元するために使用する
 func (dbm *DoubleBuffer[T]) Restore(b []byte) error {
 	newData, err := dbm.unmarshal(b)
 	if err != nil {
@@ -74,6 +106,6 @@ func (dbm *DoubleBuffer[T]) Restore(b []byte) error {
 	dbm.mtx.Lock()
 	defer dbm.mtx.Unlock()
 
-	dbm.active.Store(newData)
+	dbm.raw.Store(newData)
 	return nil
 }
