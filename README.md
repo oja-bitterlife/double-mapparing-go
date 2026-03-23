@@ -5,7 +5,7 @@
 - ネイティブGo
 - ダブルバッファの作成にユーザー定義のSerialize/Deserializeを使用する
     - リフレクションを使わないSerializerを使うことができる
-- 中身はただのmapや構造体なのでインメモリで高速
+- 中身はただのmapや構造体なのでin-memoryで高速
 - ファイル保存のためにbyte[]出力できる
     - もちろんそれをrestoreできる
 - スレッドセーフ
@@ -18,12 +18,12 @@
   > tinygo build -o bin/main -no-debug .
 
   # MsgPack(msgp:※リフレクション無し)使用
-  ❯ tinygo build -o bin/main_min.wasm -target wasm -no-debug .
+  ❯ tinygo build -o bin/main_min -no-debug .
 
   # リフレクション外すとめっちゃ小さくなるよ！('(ﾟ∀ﾟ∩ 
   ❯ ls bin/* -lah
   -rwxr-xr-x 1 oja oja 362K Mar 23 15:33 bin/main*
-  -rwxr-xr-x 1 oja oja  81K Mar 23 15:36 bin/main_min.wasm*
+  -rwxr-xr-x 1 oja oja  81K Mar 23 15:36 bin/main_min*
   ```
 
 ## インストール
